@@ -324,7 +324,7 @@ async function loadData() {
       .sort((a,b) => new Date(a.created_at)-new Date(b.created_at))
       .map(item => ({
         id: item.id, checked: item.checked||false,
-        subject: item.subject||'', date: item.date||'',
+        subject: item.subject||'', date: toLocalDatetimeStr(item.date),
         status: item.status||'ni', body: item.body||'',
         notes: item.notes||'',
         checklist: item.checklist||[],
@@ -429,7 +429,8 @@ async function saveItem(sid,iid) {
   const btn=g('btn-save-'+iid);
   const ind=g('saving-'+iid);
   if (g('subj_'+iid)) item.subject = g('subj_'+iid).value||'Sem título';
-  if (g('date_'+iid)) item.date    = g('date_'+iid).value;
+  const dateInput = g('date_'+iid);
+  if (dateInput && dateInput.value) item.date = dateInput.value;
   if (g('body_'+iid)) item.body    = g('body_'+iid).value;
   if (g('notes_'+iid)) item.notes  = g('notes_'+iid).value;
   item.checklist.forEach(c => {
@@ -490,7 +491,9 @@ function addCheckItem(sid,iid) {
 function captureFields(item) {
   const iid = item.id;
   if (g('subj_'+iid)) item.subject = g('subj_'+iid).value || item.subject;
-  if (g('date_'+iid)) item.date    = g('date_'+iid).value;
+  // Preserva data existente se o input estiver vazio (ex: após render sem conversão)
+  const dateVal = g('date_'+iid) ? g('date_'+iid).value : '';
+  if (dateVal) item.date = dateVal;
   if (g('body_'+iid)) item.body    = g('body_'+iid).value;
   if (g('notes_'+iid)) item.notes  = g('notes_'+iid).value;
   item.checklist.forEach(c => {
@@ -779,6 +782,17 @@ function itemHtml(sid, item, idx) {
 }
 
 /* ── HELPERS ── */
+// Converte data ISO do banco (ex: "2026-04-29T09:12:00+00:00") para
+// formato aceito pelo input datetime-local ("2026-04-29T09:12")
+function toLocalDatetimeStr(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch(_) { return ''; }
+}
 function tagHtml(s){const st=STATUSES.find(x=>x.key===s)||STATUSES[0];return `<span class="tag ${st.cls}">${st.label}</span>`;}
 function fmtDate(dt){if(!dt)return '—';try{const d=new Date(dt);return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}catch(e){return dt;}}
 function escH(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -848,7 +862,11 @@ async function openAttach(event, sid, iid, idx) {
     att.signedAt  = att.signedUrl ? Date.now() : null;
     render(); // atualiza o chip
     if (!att.signedUrl) {
-      toast('Não foi possível gerar o link. Verifique as políticas do Storage.', true);
+      toast('Erro ao gerar link. Abra o F12 → Console para ver o detalhe.', true);
+      console.error('openAttach: getSignedUrl retornou null para path:', att.path,
+        '\nVerifique: 1) bucket "attachments" existe e é privado, ' +
+        '2) políticas de Storage estão aplicadas (SELECT/INSERT/DELETE), ' +
+        '3) o path começa com seu user_id');
       return;
     }
   }
