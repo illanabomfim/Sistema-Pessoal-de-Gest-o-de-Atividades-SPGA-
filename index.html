@@ -558,23 +558,35 @@ async function handleFile(sid, iid, files) {
   const item=sec&&sec.items.find(i=>i.id===iid);
   if (!item||!files.length) return;
 
-  // Confirma sessão ativa — obtém UUID diretamente do servidor, não de cache
+  // Copia os arquivos IMEDIATAMENTE para um array real antes de qualquer render()
+  // O browser invalida o FileList original se o <input> for recriado no DOM
+  const fileArr = Array.from(files).map(f => f);
+  if (!fileArr.length) return;
+
+  // Confirma sessão antes de iniciar uploads
   const { data:{ user }, error:userErr } = await sb.auth.getUser();
   if (userErr || !user) { toast('Sessão expirada. Faça login novamente.', true); return; }
 
-  const fileArr = Array.from(files);
+  // Valida todos os arquivos antes de começar qualquer upload
+  const valid = [];
+  for (const file of fileArr) {
+    const err = validateFile(file);
+    if (err) { toast(err, true); }
+    else valid.push(file);
+  }
+  if (!valid.length) return;
+
+  // Captura campos antes do primeiro render() do loop
+  captureFields(item);
+
   if (!uploadingItems[iid]) uploadingItems[iid]=[];
 
-  for (const file of fileArr) {
-    const validationError = validateFile(file);
-    if (validationError) { toast(validationError, true); continue; }
-
+  for (const file of valid) {
     const ext  = file.name.split('.').pop().toUpperCase().slice(0,4);
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-    // Caminho: {uuid-usuario}/{id-item}/{timestamp}_{nome}
-    // A política RLS do Storage valida: (storage.foldername(name))[1] = auth.uid()
     const path = `${user.id}/${iid}/${Date.now()}_${safe}`;
 
+    // Marca como enviando — render() mostra a barra de progresso
     const uploading = { name:file.name, ext, progress:0 };
     uploadingItems[iid].push(uploading);
     render();
@@ -590,7 +602,6 @@ async function handleFile(sid, iid, files) {
       render(); continue;
     }
 
-    // Bucket privado: gera link assinado temporário (expira em 1h)
     const signedUrl = await getSignedUrl(path);
     item.attachments.push({ name:file.name, ext, path, signedUrl });
     render();
@@ -785,17 +796,21 @@ function tradErr(msg){
 }
 
 /* ── FILE INPUT GLOBAL HANDLER ── */
-// Usa delegação de evento no document para não perder o listener após render()
+// Delegação no document — sobrevive a qualquer render() que recriar o <input>
 document.addEventListener('change', function(e) {
   const input = e.target;
   if (!input.classList.contains('file-input-real')) return;
   const sid = input.dataset.sid;
   const iid = input.dataset.iid;
-  if (sid && iid && input.files.length) {
-    handleFile(sid, iid, input.files);
-    // Reset após pequeno delay para permitir leitura dos arquivos
-    setTimeout(() => { input.value = ''; }, 200);
-  }
+  if (!sid || !iid || !input.files.length) return;
+
+  // Copia FileList para array ANTES de qualquer outra operação
+  // O reset do input (input.value='') deve vir só depois que handleFile
+  // já fez Array.from(files) internamente — aqui apenas disparamos
+  handleFile(sid, iid, input.files).finally(() => {
+    // Reset depois que a promise terminar (sucesso ou erro)
+    try { input.value = ''; } catch(_) {}
+  });
 });
 
 function triggerFileInput(iid) {
