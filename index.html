@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Atividades Semanais</title>
+
+<script>
+  const SUPABASE_URL      = '__SUPABASE_URL__';
+  const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
+  const STORAGE_BUCKET    = 'attachments';
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --accent:#4f46e5;--accent-light:#818cf8;
+  --surface:#fff;--surface2:#f8f7ff;
+  --border:rgba(79,70,229,0.12);--border2:rgba(79,70,229,0.25);
+  --text:#1a1a2e;--text2:#6b7280;--text3:#9ca3af;
+  --tag-ni:#f0fdf4;--tag-ni-c:#15803d;--tag-ni-b:#bbf7d0;
+  --tag-ea:#fef9c3;--tag-ea-c:#854d0e;--tag-ea-b:#fde047;
+  --tag-co:#eff6ff;--tag-co-c:#1d4ed8;--tag-co-b:#bfdbfe;
+  --radius:10px;--shadow:0 1px 8px rgba(79,70,229,0.1);
+}
+body{font-family:'DM Sans',sans-serif;background:#f3f2ff;color:var(--text);min-height:100vh;}
+
+/* LOADING */
+#loading-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+.spinner{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:13px;color:var(--text2);}
+
+/* AUTH */
+#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;}
+.auth-card{width:100%;max-width:420px;background:var(--surface);border:0.5px solid var(--border2);border-radius:18px;padding:2.5rem 2rem;box-shadow:var(--shadow);}
+.auth-logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:600;color:var(--text);text-align:center;margin-bottom:6px;}
+.auth-logo span{color:var(--accent);}
+.auth-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:2rem;}
+
+.auth-field{margin-bottom:1rem;}
+.auth-field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;}
+.auth-field input{width:100%;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:#f9f8ff;border:0.5px solid var(--border2);border-radius:var(--radius);padding:10px 12px;outline:none;transition:border-color .15s;}
+.auth-field input:focus{border-color:var(--accent);background:var(--surface);}
+.btn-auth{width:100%;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;background:var(--accent);color:white;border:none;border-radius:var(--radius);padding:11px;cursor:pointer;transition:opacity .15s;margin-top:4px;}
+.btn-auth:hover{opacity:.88;}
+.btn-auth:disabled{opacity:.5;cursor:not-allowed;}
+
+.auth-msg{font-size:12px;border-radius:8px;padding:8px 12px;margin-top:10px;display:none;}
+.auth-msg.show{display:block;}
+.auth-msg.error{color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;}
+.auth-msg.success{color:#15803d;background:#f0fdf4;border:0.5px solid #bbf7d0;}
+.auth-msg.info{color:#1d4ed8;background:#eff6ff;border:0.5px solid #bfdbfe;}
+
+/* APP */
+#app-screen{display:none;}
+.app{max-width:960px;margin:0 auto;padding:2rem 1.5rem;}
+.app-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border2);}
+.app-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:600;color:var(--text);letter-spacing:-0.3px;}
+.app-title span{color:var(--accent);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.user-badge{font-size:12px;color:var(--text2);background:var(--surface2);border:0.5px solid var(--border2);border-radius:20px;padding:5px 12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-logout{font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text2);background:transparent;border:0.5px solid var(--border2);border-radius:8px;padding:5px 12px;cursor:pointer;transition:all .15s;}
+.btn-logout:hover{color:#dc2626;border-color:#fca5a5;}
+.btn-add-section{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;transition:opacity .15s;}
+.btn-add-section:hover{opacity:.85;}
+
+/* SECTIONS */
+.section{margin-bottom:1.5rem;border:0.5px solid var(--border2);border-radius:14px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow);}
+.section-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:linear-gradient(90deg,rgba(79,70,229,0.08) 0%,transparent 100%);border-bottom:0.5px solid var(--border);cursor:pointer;user-select:none;}
+.section-toggle{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--accent);transition:transform .2s;flex-shrink:0;}
+.section-toggle.collapsed{transform:rotate(-90deg);}
+.section-label{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--accent);flex:1;}
+.section-meta{font-size:11px;color:var(--text3);}
+.btn-add-item{font-size:12px;color:var(--accent);background:transparent;border:0.5px solid var(--border2);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;}
+.btn-add-item:hover{background:rgba(79,70,229,0.06);}
+.btn-del-section{font-size:11px;color:var(--text3);background:transparent;border:none;cursor:pointer;padding:4px 6px;transition:color .15s;}
+.btn-del-section:hover{color:#dc2626;}
+.section-body{display:grid;grid-template-columns:1fr;}
+.section-body.hidden{display:none;}
+
+/* ITEMS */
+.item{border-bottom:0.5px solid var(--border);}
+.item:last-child{border-bottom:none;}
+.item-row{display:grid;grid-template-columns:30px 44px 1fr 100px 110px;align-items:center;cursor:pointer;transition:background .12s;}
+.item-row:hover{background:rgba(79,70,229,0.03);}
+.item-num{font-size:11px;font-weight:500;color:var(--text3);padding:10px 0 10px 12px;font-family:'Syne',sans-serif;}
+.item-check{padding:10px 8px;display:flex;align-items:center;justify-content:center;}
+.item-check input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+.item-subject{padding:10px 12px;font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.item-subject.done{text-decoration:line-through;color:var(--text3);}
+.item-date{padding:10px 8px;font-size:11px;color:var(--text2);text-align:center;}
+.item-status{padding:10px 12px;display:flex;align-items:center;justify-content:center;}
+.tag{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:opacity .15s;}
+.tag:hover{opacity:.8;}
+.tag.ni{background:var(--tag-ni);color:var(--tag-ni-c);border:0.5px solid var(--tag-ni-b);}
+.tag.ea{background:var(--tag-ea);color:var(--tag-ea-c);border:0.5px solid var(--tag-ea-b);}
+.tag.co{background:var(--tag-co);color:var(--tag-co-c);border:0.5px solid var(--tag-co-b);}
+.col-headers{display:grid;grid-template-columns:30px 44px 1fr 100px 110px;padding:5px 0;border-bottom:0.5px solid var(--border);background:rgba(79,70,229,0.02);}
+.col-h{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-family:'Syne',sans-serif;}
+.col-h.c-subj{padding:4px 12px;}
+.col-h.c-date{padding:4px 8px;text-align:center;}
+.col-h.c-status{padding:4px 12px;text-align:center;}
+
+/* DETAIL */
+.item-detail{display:none;background:var(--surface2);border-top:0.5px solid var(--border);}
+.item-detail.open{display:block;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1rem 1.25rem;}
+.detail-full{grid-column:1/-1;}
+.field-label{font-size:11px;font-weight:500;color:var(--accent-light);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px;font-family:'Syne',sans-serif;}
+.field-input{width:100%;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius);padding:8px 10px;outline:none;transition:border-color .15s;resize:none;}
+.field-input:focus{border-color:var(--accent);}
+textarea.field-input{min-height:80px;line-height:1.5;}
+.field-row{display:flex;flex-direction:column;}
+.status-picker{display:flex;gap:6px;flex-wrap:wrap;}
+
+/* CHECKLIST */
+.checklist-area{display:flex;flex-direction:column;gap:6px;}
+.check-item-row{display:flex;align-items:center;gap:8px;}
+.check-item-row input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;}
+.check-item-row input[type=text]{flex:1;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:transparent;border:none;border-bottom:0.5px solid var(--border2);outline:none;padding:4px 2px;}
+.check-item-row input[type=text]:focus{border-bottom-color:var(--accent);}
+.check-item-row.done-item input[type=text]{text-decoration:line-through;color:var(--text3);}
+.btn-del-check{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:0 2px;line-height:1;}
+.btn-del-check:hover{color:#dc2626;}
+.btn-add-check{font-size:12px;color:var(--accent);background:transparent;border:none;cursor:pointer;padding:4px 0;font-family:'DM Sans',sans-serif;text-align:left;margin-top:2px;}
+
+/* ATTACHMENTS */
+.attach-area{border:0.5px dashed var(--border2);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface);}
+.attach-list{display:flex;flex-wrap:wrap;gap:6px;}
+.attach-chip{display:flex;align-items:center;gap:5px;font-size:12px;background:rgba(79,70,229,0.08);color:var(--accent);padding:3px 9px;border-radius:6px;border:0.5px solid rgba(79,70,229,0.15);}
+.attach-chip .ext{font-size:9px;font-weight:700;padding:1px 4px;background:var(--accent);color:white;border-radius:3px;}
+.attach-chip a{color:var(--accent);text-decoration:none;font-size:12px;}
+.attach-chip a:hover{text-decoration:underline;}
+.attach-chip .rm{cursor:pointer;color:var(--text3);margin-left:4px;font-weight:700;font-size:13px;}
+.attach-chip .rm:hover{color:#dc2626;}
+.attach-uploading{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);}
+.attach-prog{flex:1;height:3px;background:var(--border2);border-radius:2px;overflow:hidden;}
+.attach-prog-bar{height:100%;background:var(--accent);border-radius:2px;transition:width .2s;}
+.btn-attach{font-size:12px;color:var(--accent);background:rgba(79,70,229,0.06);border:0.5px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;transition:background .15s;}
+.btn-attach:hover{background:rgba(79,70,229,0.1);}
+.btn-attach:disabled{opacity:.5;cursor:not-allowed;}
+.attach-hint{font-size:11px;color:var(--text3);font-style:italic;}
+.file-input-real{display:none;}
+
+/* FOOTER */
+.item-detail-footer{padding:10px 1.25rem;border-top:0.5px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center;}
+.saving-indicator{font-size:11px;color:var(--text3);flex:1;font-style:italic;}
+.btn-save{font-size:12px;background:var(--accent);color:white;border:none;border-radius:7px;padding:6px 16px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity .15s;font-weight:500;}
+.btn-save:hover{opacity:.85;}
+.btn-save:disabled{opacity:.5;cursor:not-allowed;}
+.btn-del{font-size:12px;background:transparent;color:#ef4444;border:0.5px solid #fca5a5;border-radius:7px;padding:6px 14px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.empty-msg{padding:28px;text-align:center;font-size:13px;color:var(--text3);font-style:italic;}
+.empty-app{padding:3rem 0;text-align:center;}
+.empty-app p{font-size:15px;color:var(--text2);margin-bottom:1rem;}
+#toast{position:fixed;bottom:24px;right:24px;background:#1a1a2e;color:white;padding:10px 18px;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;opacity:0;transition:opacity .25s;z-index:9999;pointer-events:none;}
+#toast.err{background:#dc2626;}
+@media(max-width:600px){
+  .detail-grid{grid-template-columns:1fr;}.detail-full{grid-column:1;}
+  .item-row{grid-template-columns:24px 36px 1fr 80px;}.item-status,.col-h.c-status{display:none;}
+  .topbar-right{gap:6px;}.user-badge{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text">Conectando...</div>
+</div>
+
+<div id="auth-screen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-logo">Atividades <span>Semanais</span></div>
+    <div class="auth-sub">Faça login para acessar suas atividades</div>
+    <!-- LOGIN -->
+    <div id="form-login">
+      <div class="auth-field"><label>E-mail</label>
+        <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+      <div class="auth-field"><label>Senha</label>
+        <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+      <button class="btn-auth" id="btn-login" onclick="doLogin()">Entrar</button>
+      <div class="auth-msg error" id="login-error"></div>
+      <div class="auth-msg info show" style="margin-top:14px;">Acesso restrito a usuários autorizados.</div>
+    </div>
+  </div>
+</div>
+
+<div id="app-screen" style="display:none;">
+  <div class="app">
+    <div class="app-topbar">
+      <span class="app-title">Atividades <span>Semanais</span></span>
+      <div class="topbar-right">
+        <span class="user-badge" id="user-email-badge"></span>
+        <button class="btn-add-section" onclick="addSection()">+ Nova seção</button>
+        <button class="btn-logout" onclick="doLogout()">Sair</button>
+      </div>
+    </div>
+    <div id="sections-container"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ── INIT SUPABASE ── */
+const { createClient } = supabase;
+let sb;
+try {
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) {
+  document.getElementById('loading-screen').innerHTML =
+    '<div style="padding:2rem;text-align:center;font-family:sans-serif;color:#dc2626;">' +
+    '<b>Erro de configuração</b><br><br>' +
+    'Verifique se SUPABASE_URL começa com <code>https://</code><br>' +
+    'e SUPABASE_ANON_KEY começa com <code>eyJ</code>.<br><br>' +
+    '<small>' + e.message + '</small></div>';
+  throw e;
+}
+
+const STATUSES = [
+  { key:'ni', label:'Não iniciada', cls:'ni' },
+  { key:'ea', label:'Em andamento', cls:'ea' },
+  { key:'co', label:'Concluída',    cls:'co' },
+];
+
+let currentUser = null;
+let state = { sections: [] };
+let uploadingItems = {}; // iid -> [{name, progress}]
+
+/* ── BOOT ── */
+async function init() {
+  show('loading-screen');
+
+  // Detecta credenciais erradas antes mesmo de conectar
+  if (!SUPABASE_URL.startsWith('https://') || !SUPABASE_ANON_KEY.startsWith('eyJ')) {
+    showConfigError();
+    return;
+  }
+
+  try {
+    const { data: { session }, error } = await sb.auth.getSession();
+    if (error) throw error;
+    if (session?.user) { currentUser = session.user; await enterApp(); }
+    else { show('auth-screen'); }
+  } catch(e) {
+    showConfigError(e.message);
+    return;
+  }
+
+  sb.auth.onAuthStateChange(async (_evt, session) => {
+    if (session?.user && !currentUser) {
+      currentUser = session.user; await enterApp();
+    } else if (!session?.user && currentUser) {
+      currentUser = null; state = { sections: [] }; show('auth-screen');
+    }
+  });
+}
+
+function showConfigError(msg) {
+  document.getElementById('loading-screen').innerHTML =
+    '<div style="max-width:480px;margin:auto;padding:2rem;font-family:sans-serif;background:#fff;border-radius:14px;border:1px solid #fca5a5;text-align:left;">' +
+    '<p style="font-size:15px;font-weight:600;color:#dc2626;margin-bottom:12px;">⚠ Credenciais incorretas ou não configuradas</p>' +
+    '<p style="font-size:13px;color:#374151;margin-bottom:12px;">No Supabase Dashboard → Settings → API, você precisa copiar:</p>' +
+    '<ul style="font-size:13px;color:#374151;padding-left:20px;line-height:2;">' +
+    '<li><b>Project URL</b> — começa com <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;">https://</code></li>' +
+    '<li><b>anon public</b> — começa com <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;">eyJ</code> (chave JWT longa)</li>' +
+    '</ul>' +
+    '<p style="font-size:12px;color:#6b7280;margin-top:12px;background:#fef9c3;padding:8px;border-radius:6px;">Atenção: as chaves <b>sb_publishable_</b> e <b>sb_secret_</b> que aparecem no painel novo não funcionam aqui. Use a aba <b>API</b> em Settings para copiar a URL e a chave <b>anon</b>.</p>' +
+    (msg ? '<p style="font-size:11px;color:#9ca3af;margin-top:8px;">Detalhe: ' + msg + '</p>' : '') +
+    '</div>';
+}
+
+async function enterApp() {
+  show('app-screen');
+  document.getElementById('user-email-badge').textContent =
+    currentUser.email || currentUser.user_metadata?.full_name || '';
+  await loadData();
+  render();
+}
+
+/* ── AUTH ── */
+
+async function doLogin() {
+  const email = g('login-email').value.trim();
+  const pw    = g('login-password').value;
+  const errEl = g('login-error');
+  const infEl = g('login-info');
+  const btn   = g('btn-login');
+  errEl.classList.remove('show'); infEl.classList.remove('show');
+  if (!email||!pw){ showMsg(errEl,'Preencha e-mail e senha.'); return; }
+  btn.disabled=true; btn.textContent='Entrando...';
+  const { error } = await sb.auth.signInWithPassword({ email, password:pw });
+  btn.disabled=false; btn.textContent='Entrar';
+  if (error) showMsg(errEl, tradErr(error.message));
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  show('auth-screen');
+}
+
+/* ── DATA ── */
+async function loadData() {
+  const { data, error } = await sb
+    .from('sections')
+    .select('*, items(*)')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending:true });
+  if (error) { toast('Erro ao carregar: '+error.message, true); return; }
+  state.sections = (data||[]).map(sec => ({
+    id: sec.id, label: sec.label, collapsed: sec.collapsed||false,
+    items: (sec.items||[])
+      .sort((a,b) => new Date(a.created_at)-new Date(b.created_at))
+      .map(item => ({
+        id: item.id, checked: item.checked||false,
+        subject: item.subject||'', date: item.date||'',
+        status: item.status||'ni', body: item.body||'',
+        notes: item.notes||'',
+        checklist: item.checklist||[],
+        attachments: item.attachments||[],
+        open: false,
+      }))
+  }));
+}
+
+/* ── SECTIONS ── */
+async function addSection() {
+  const label = prompt('Nome da seção:', 'Nova seção — DD/MM a DD/MM');
+  if (!label) return;
+  const { data, error } = await sb.from('sections')
+    .insert({ user_id: currentUser.id, label, collapsed:false })
+    .select().single();
+  if (error){ toast('Erro: '+error.message, true); return; }
+  state.sections.push({ id:data.id, label:data.label, collapsed:false, items:[] });
+  render(); toast('Seção criada!');
+}
+
+async function toggleSection(sid) {
+  const sec = state.sections.find(s=>s.id===sid);
+  if (!sec) return;
+  sec.collapsed = !sec.collapsed; render();
+  await sb.from('sections').update({ collapsed:sec.collapsed }).eq('id',sid);
+}
+
+async function deleteSection(sid) {
+  if (!confirm('Excluir esta seção e todas as suas atividades? (Anexos também serão apagados)')) return;
+
+  const sec = state.sections.find(s=>s.id===sid);
+  if (!sec) return;
+
+  // Coleta todos os caminhos de anexos de todos os itens desta seção
+  let allPaths = [];
+  sec.items.forEach(item => {
+    if (item.attachments && item.attachments.length) {
+      const paths = item.attachments.filter(a=>a.path).map(a=>a.path);
+      allPaths = allPaths.concat(paths);
+    }
+  });
+
+  // Remove arquivos do Storage em lote antes de apagar o banco
+  if (allPaths.length > 0) {
+    const { error: storageErr } = await sb.storage.from(STORAGE_BUCKET).remove(allPaths);
+    if (storageErr) console.warn('Alguns arquivos podem não ter sido removidos do Storage:', storageErr);
+  }
+
+  // Deleta a seção — o banco faz cascade nos itens via foreign key
+  const { error } = await sb.from('sections').delete().eq('id',sid);
+  if (error){ toast('Erro ao excluir seção: '+error.message, true); return; }
+
+  state.sections = state.sections.filter(s=>s.id!==sid);
+  render();
+  toast(allPaths.length > 0 ? `Seção excluída (${allPaths.length} anexo(s) removido(s)).` : 'Seção excluída.');
+}
+
+/* ── ITEMS ── */
+async function addItem(sid) {
+  const sec = state.sections.find(s=>s.id===sid);
+  if (!sec) return;
+  const { data, error } = await sb.from('items').insert({
+    section_id:sid, user_id:currentUser.id,
+    subject:'Nova atividade', status:'ni',
+    checked:false, checklist:[], attachments:[],
+  }).select().single();
+  if (error){ toast('Erro: '+error.message, true); return; }
+  sec.items.push({
+    id:data.id, checked:false, subject:'Nova atividade',
+    date:'', status:'ni', body:'', notes:'',
+    checklist:[], attachments:[], open:true,
+  });
+  sec.collapsed = false;
+  render();
+}
+
+function toggleItem(sid,iid) {
+  openItemAndRefresh(sid,iid);
+}
+
+async function toggleCheck(sid,iid,el) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  item.checked=el.checked; render();
+  await sb.from('items').update({ checked:item.checked }).eq('id',iid);
+}
+
+async function setStatus(sid,iid,status) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  item.status=status; render();
+  await sb.from('items').update({ status }).eq('id',iid);
+}
+
+async function saveItem(sid,iid) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  const btn=g('btn-save-'+iid);
+  const ind=g('saving-'+iid);
+  if (g('subj_'+iid)) item.subject = g('subj_'+iid).value||'Sem título';
+  if (g('date_'+iid)) item.date    = g('date_'+iid).value;
+  if (g('body_'+iid)) item.body    = g('body_'+iid).value;
+  if (g('notes_'+iid)) item.notes  = g('notes_'+iid).value;
+  item.checklist.forEach(c => {
+    const inp=g('ci_'+c.id); const chk=g('cc_'+c.id);
+    if (inp) c.text=inp.value; if (chk) c.done=chk.checked;
+  });
+  if (btn){ btn.disabled=true; btn.textContent='Salvando...'; }
+
+  // Remove signedUrl antes de persistir — é temporário (1h) e não deve ir para o banco.
+  // O banco guarda apenas: name, ext, path. O signedUrl é gerado ao abrir o item.
+  const cleanAttachments = item.attachments.map(({ signedUrl, ...att }) => att);
+
+  const { error } = await sb.from('items').update({
+    subject: item.subject, date: item.date||null,
+    body: item.body, notes: item.notes,
+    checklist: item.checklist,
+    attachments: cleanAttachments,
+  }).eq('id',iid);
+  if (btn){ btn.disabled=false; btn.textContent='Salvar'; }
+  if (error){ toast('Erro ao salvar: '+error.message, true); return; }
+  if (ind){ ind.textContent='Salvo ✓'; setTimeout(()=>{ if(ind) ind.textContent=''; },2000); }
+  render();
+}
+
+async function deleteItem(sid,iid) {
+  if (!confirm('Excluir esta atividade e todos os seus anexos?')) return;
+  const { data:{ user } } = await sb.auth.getUser();
+  if (!user) { toast('Sessão expirada. Faça login novamente.', true); return; }
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  // Remove arquivos do Storage — caminho já contém user.id, política RLS valida no servidor
+  if (item&&item.attachments.length) {
+    const paths = item.attachments.filter(a=>a.path).map(a=>a.path);
+    if (paths.length) await sb.storage.from(STORAGE_BUCKET).remove(paths);
+  }
+  const { error } = await sb.from('items').delete().eq('id',iid);
+  if (error){ toast('Erro: '+error.message, true); return; }
+  if (sec) sec.items=sec.items.filter(i=>i.id!==iid);
+  render(); toast('Atividade excluída.');
+}
+
+/* ── CHECKLIST ── */
+function addCheckItem(sid,iid) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  item.checklist.push({ id:uid(), text:'', done:false });
+  render();
+  setTimeout(()=>{
+    const last=item.checklist[item.checklist.length-1];
+    const inp=g('ci_'+last.id); if(inp) inp.focus();
+  },50);
+}
+
+function delCheckItem(sid,iid,cid) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  item.checklist=item.checklist.filter(c=>c.id!==cid);
+  render();
+}
+
+/* ── STORAGE / ANEXOS ── */
+
+// Tipos permitidos e tamanho máximo
+const ALLOWED_TYPES = [
+  'image/jpeg','image/png','image/gif','image/webp','image/svg+xml',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain','text/csv',
+  'audio/mpeg','audio/mp4','audio/ogg','audio/wav',
+  'video/mp4','video/webm',
+];
+const MAX_FILE_MB = 20;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+// Links assinados expiram em 1 hora (3600s) — gerados ao abrir o item
+const SIGNED_URL_EXPIRY = 3600;
+
+function validateFile(file) {
+  if (file.size > MAX_FILE_BYTES)
+    return `"${file.name}" excede o limite de ${MAX_FILE_MB} MB.`;
+  if (!ALLOWED_TYPES.includes(file.type))
+    return `"${file.name}" — tipo não permitido (${file.type||'desconhecido'}). Formatos aceitos: imagens, PDF, Word, Excel, PowerPoint, áudio e vídeo leves.`;
+  return null;
+}
+
+async function getSignedUrl(path) {
+  const { data, error } = await sb.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_EXPIRY);
+  if (error) return null;
+  return data.signedUrl;
+}
+
+// Gera links assinados frescos para todos os anexos de um item
+async function refreshSignedUrls(item) {
+  for (const att of item.attachments) {
+    if (att.path) att.signedUrl = await getSignedUrl(att.path);
+  }
+}
+
+async function handleFile(sid, iid, files) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item||!files.length) return;
+
+  // Confirma sessão ativa — obtém UUID diretamente do servidor, não de cache
+  const { data:{ user }, error:userErr } = await sb.auth.getUser();
+  if (userErr || !user) { toast('Sessão expirada. Faça login novamente.', true); return; }
+
+  const fileArr = Array.from(files);
+  if (!uploadingItems[iid]) uploadingItems[iid]=[];
+
+  for (const file of fileArr) {
+    const validationError = validateFile(file);
+    if (validationError) { toast(validationError, true); continue; }
+
+    const ext  = file.name.split('.').pop().toUpperCase().slice(0,4);
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    // Caminho: {uuid-usuario}/{id-item}/{timestamp}_{nome}
+    // A política RLS do Storage valida: (storage.foldername(name))[1] = auth.uid()
+    const path = `${user.id}/${iid}/${Date.now()}_${safe}`;
+
+    const uploading = { name:file.name, ext, progress:0 };
+    uploadingItems[iid].push(uploading);
+    render();
+
+    const { error } = await sb.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, file, { upsert:false, contentType: file.type });
+
+    uploadingItems[iid] = uploadingItems[iid].filter(u=>u!==uploading);
+
+    if (error) {
+      toast('Erro no upload de "'+file.name+'": '+error.message, true);
+      render(); continue;
+    }
+
+    // Bucket privado: gera link assinado temporário (expira em 1h)
+    const signedUrl = await getSignedUrl(path);
+    item.attachments.push({ name:file.name, ext, path, signedUrl });
+    render();
+  }
+
+  await saveItem(sid, iid);
+}
+
+async function removeAttach(sid,iid,idx) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  const att = item.attachments[idx];
+  if (att?.path) {
+    await sb.storage.from(STORAGE_BUCKET).remove([att.path]);
+  }
+  item.attachments.splice(idx,1);
+  render();
+  await saveItem(sid,iid);
+}
+
+// Ao abrir um item, renova os links assinados automaticamente
+async function openItemAndRefresh(sid,iid) {
+  const sec=state.sections.find(s=>s.id===sid);
+  const item=sec&&sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  item.open=!item.open;
+  if (item.open && item.attachments.some(a=>a.path)) {
+    await refreshSignedUrls(item);
+  }
+  render();
+}
+
+/* ── RENDER ── */
+function render() {
+  const container = g('sections-container');
+  if (!state.sections.length) {
+    container.innerHTML = `<div class="empty-app"><p>Nenhuma seção ainda.</p><button class="btn-add-section" onclick="addSection()">+ Criar primeira seção</button></div>`;
+    return;
+  }
+  container.innerHTML = state.sections.map(sec => {
+    const count = sec.items.length;
+    const bodyHtml = sec.collapsed ? '' : `
+    <div class="section-body">
+      ${count===0
+        ? `<div class="empty-msg">Nenhuma atividade — clique em "+ item".</div>`
+        : `<div class="col-headers">
+            <span class="col-h"></span><span class="col-h"></span>
+            <span class="col-h c-subj">Assunto</span>
+            <span class="col-h c-date">Data</span>
+            <span class="col-h c-status">Status</span>
+           </div>
+           ${sec.items.map((item,ii)=>itemHtml(sec.id,item,ii)).join('')}`
+      }
+    </div>`;
+    return `
+    <div class="section" id="sec_${sec.id}">
+      <div class="section-header" onclick="toggleSection('${sec.id}')">
+        <span class="section-toggle ${sec.collapsed?'collapsed':''}">▼</span>
+        <span class="section-label">${escH(sec.label)}</span>
+        <span class="section-meta">${count} item${count!==1?'s':''}</span>
+        <button class="btn-add-item" onclick="event.stopPropagation();addItem('${sec.id}')">+ item</button>
+        <button class="btn-del-section" onclick="event.stopPropagation();deleteSection('${sec.id}')" title="Excluir seção">✕</button>
+      </div>
+      ${bodyHtml}
+    </div>`;
+  }).join('');
+}
+
+function itemHtml(sid, item, idx) {
+  const dt = fmtDate(item.date);
+  const ups = uploadingItems[item.id]||[];
+
+  const attachHtml = `
+  <div class="attach-area">
+    ${item.attachments.length ? `<div class="attach-list">
+      ${item.attachments.map((a,ai)=>`
+      <span class="attach-chip">
+        <span class="ext">${a.ext}</span>
+        ${a.signedUrl
+          ? `<a href="${a.signedUrl}" target="_blank" rel="noopener">${escH(a.name.length>22?a.name.slice(0,20)+'…':a.name)}</a>`
+          : `<span style="color:var(--text3);font-style:italic;">${escH(a.name.length>22?a.name.slice(0,20)+'…':a.name)} (abrindo…)</span>`
+        }
+        <span class="rm" onclick="removeAttach('${sid}','${item.id}',${ai})">×</span>
+      </span>`).join('')}
+    </div>` : ''}
+    ${ups.map(u=>`
+    <div class="attach-uploading">
+      <span style="font-size:11px;">${escH(u.name.length>20?u.name.slice(0,18)+'…':u.name)}</span>
+      <div class="attach-prog"><div class="attach-prog-bar" style="width:${u.progress||30}%"></div></div>
+      <span style="font-size:11px;color:var(--accent);">enviando…</span>
+    </div>`).join('')}
+    <input type="file" multiple
+      accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,audio/mpeg,audio/mp4,audio/ogg,audio/wav,video/mp4,video/webm"
+      class="file-input-real" id="fi_${item.id}"
+      onchange="handleFile('${sid}','${item.id}',this.files);this.value=''" />
+    <button class="btn-attach" onclick="g('fi_${item.id}').click()">
+      + Adicionar arquivo
+    </button>
+    <span class="attach-hint">Imagens, PDF, Word, Excel, PPT, áudio, vídeo — máx. 20 MB por arquivo. Links expiram em 1h; reabra o item para renovar.</span>
+  </div>`;
+
+  return `
+  <div class="item" id="item_${item.id}">
+    <div class="item-row" onclick="toggleItem('${sid}','${item.id}')">
+      <span class="item-num">${idx+1}</span>
+      <span class="item-check" onclick="event.stopPropagation()">
+        <input type="checkbox" ${item.checked?'checked':''} onchange="toggleCheck('${sid}','${item.id}',this)" />
+      </span>
+      <span class="item-subject ${item.checked?'done':''}">${escH(item.subject)}</span>
+      <span class="item-date">${dt}</span>
+      <span class="item-status">${tagHtml(item.status)}</span>
+    </div>
+    <div class="item-detail ${item.open?'open':''}" id="detail_${item.id}">
+      <div class="detail-grid">
+        <div class="detail-full field-row">
+          <div class="field-label">Assunto</div>
+          <input id="subj_${item.id}" class="field-input" type="text" value="${escH(item.subject)}" placeholder="Título da atividade" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">Data e horário</div>
+          <input id="date_${item.id}" class="field-input" type="datetime-local" value="${item.date||''}" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">Status</div>
+          <div class="status-picker">
+            ${STATUSES.map(s=>`<button class="tag ${s.cls}" style="${item.status===s.key?'outline:2px solid var(--accent);outline-offset:2px;':'opacity:.55;'}" onclick="setStatus('${sid}','${item.id}','${s.key}')">${s.label}</button>`).join('')}
+          </div>
+        </div>
+        <div class="detail-full field-row">
+          <div class="field-label">Corpo / Descrição</div>
+          <textarea id="body_${item.id}" class="field-input" rows="5" placeholder="Contexto, objetivo, detalhes...">${escH(item.body)}</textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Check-list</div>
+          <div class="checklist-area">
+            ${item.checklist.map(c=>`
+            <div class="check-item-row ${c.done?'done-item':''}">
+              <input id="cc_${c.id}" type="checkbox" ${c.done?'checked':''} onchange="saveItem('${sid}','${item.id}')" />
+              <input id="ci_${c.id}" type="text" value="${escH(c.text)}" placeholder="Item..." onblur="saveItem('${sid}','${item.id}')" />
+              <button class="btn-del-check" onclick="delCheckItem('${sid}','${item.id}','${c.id}')">×</button>
+            </div>`).join('')}
+            <button class="btn-add-check" onclick="addCheckItem('${sid}','${item.id}')">+ Adicionar item</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Anexos</div>
+          ${attachHtml}
+        </div>
+        <div class="detail-full field-row">
+          <div class="field-label">Anotações</div>
+          <textarea id="notes_${item.id}" class="field-input" rows="3" placeholder="Anotações diversas, links, contextos...">${escH(item.notes)}</textarea>
+        </div>
+      </div>
+      <div class="item-detail-footer">
+        <span class="saving-indicator" id="saving-${item.id}"></span>
+        <button class="btn-del" onclick="deleteItem('${sid}','${item.id}')">Excluir</button>
+        <button class="btn-save" id="btn-save-${item.id}" onclick="saveItem('${sid}','${item.id}')">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── HELPERS ── */
+function tagHtml(s){const st=STATUSES.find(x=>x.key===s)||STATUSES[0];return `<span class="tag ${st.cls}">${st.label}</span>`;}
+function fmtDate(dt){if(!dt)return '—';try{const d=new Date(dt);return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}catch(e){return dt;}}
+function escH(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function uid(){return 'x'+Math.random().toString(36).slice(2,8);}
+function g(id){return document.getElementById(id);}
+function show(id){
+  ['loading-screen','auth-screen','app-screen'].forEach(i=>{
+    const el=g(i);
+    if(!el)return;
+    el.style.display = i===id ? (i==='app-screen'?'block':'flex') : 'none';
+  });
+}
+function showMsg(el,msg){el.textContent=msg;el.classList.add('show');}
+function toast(msg,isErr=false){
+  const t=g('toast');
+  t.textContent=msg;
+  t.className=isErr?'err':'';
+  t.style.opacity='1';
+  clearTimeout(t._tid);
+  t._tid=setTimeout(()=>{t.style.opacity='0';},3000);
+}
+function tradErr(msg){
+  if(msg.includes('Invalid login'))return 'E-mail ou senha incorretos.';
+  if(msg.includes('Email not confirmed'))return 'Confirme seu e-mail antes de entrar.';
+  if(msg.includes('User already registered'))return 'Este e-mail já está cadastrado.';
+  if(msg.includes('Password should be'))return 'A senha deve ter pelo menos 6 caracteres.';
+  return msg;
+}
+
+init();
+</script>
+</body>
+</html>
