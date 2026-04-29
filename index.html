@@ -539,17 +539,32 @@ function validateFile(file) {
 }
 
 async function getSignedUrl(path) {
+  if (!path) return null;
   const { data, error } = await sb.storage
     .from(STORAGE_BUCKET)
     .createSignedUrl(path, SIGNED_URL_EXPIRY);
-  if (error) return null;
-  return data.signedUrl;
+  if (error) {
+    console.warn('getSignedUrl error:', error.message, 'path:', path);
+    return null;
+  }
+  return data?.signedUrl || null;
 }
 
-// Gera links assinados frescos para todos os anexos de um item
+// Retorna true se o link precisa ser renovado (ausente ou expira em < 5 min)
+function needsRefresh(att) {
+  if (!att.signedUrl) return true;
+  if (!att.signedAt) return true;
+  const age = (Date.now() - att.signedAt) / 1000; // segundos
+  return age > (SIGNED_URL_EXPIRY - 300); // renova se sobram < 5 min
+}
+
+// Renova apenas links ausentes ou prestes a expirar (< 5 min restantes)
 async function refreshSignedUrls(item) {
   for (const att of item.attachments) {
-    if (att.path) att.signedUrl = await getSignedUrl(att.path);
+    if (att.path && needsRefresh(att)) {
+      att.signedUrl = await getSignedUrl(att.path);
+      if (att.signedUrl) att.signedAt = Date.now();
+    }
   }
 }
 
@@ -603,7 +618,8 @@ async function handleFile(sid, iid, files) {
     }
 
     const signedUrl = await getSignedUrl(path);
-    item.attachments.push({ name:file.name, ext, path, signedUrl });
+    const signedAt  = signedUrl ? Date.now() : null;
+    item.attachments.push({ name:file.name, ext, path, signedUrl, signedAt });
     render();
   }
 
@@ -681,10 +697,7 @@ function itemHtml(sid, item, idx) {
       ${item.attachments.map((a,ai)=>`
       <span class="attach-chip">
         <span class="ext">${a.ext}</span>
-        ${a.signedUrl
-          ? `<a href="${a.signedUrl}" target="_blank" rel="noopener">${escH(a.name.length>22?a.name.slice(0,20)+'…':a.name)}</a>`
-          : `<span style="color:var(--text3);font-style:italic;">${escH(a.name.length>22?a.name.slice(0,20)+'…':a.name)} (abrindo…)</span>`
-        }
+        <a href="#" onclick="openAttach(event,'${sid}','${item.id}',${ai})" style="cursor:pointer;">${escH(a.name.length>22?a.name.slice(0,20)+'…':a.name)}${a.signedUrl?'':' ⏳'}</a>
         <span class="rm" onclick="removeAttach('${sid}','${item.id}',${ai})">×</span>
       </span>`).join('')}
     </div>` : ''}
@@ -701,7 +714,7 @@ function itemHtml(sid, item, idx) {
     <button class="btn-attach" onclick="triggerFileInput('${item.id}')">
       + Adicionar arquivo
     </button>
-    <span class="attach-hint">Imagens, PDF, Word, Excel, PPT, áudio, vídeo — máx. 20 MB por arquivo. Links expiram em 1h; reabra o item para renovar.</span>
+    <span class="attach-hint">Imagens, PDF, Word, Excel, PPT, áudio, vídeo — máx. 20 MB. Links renovados automaticamente ao clicar.</span>
   </div>`;
 
   return `
@@ -816,6 +829,31 @@ document.addEventListener('change', function(e) {
 function triggerFileInput(iid) {
   const input = g('fi_' + iid);
   if (input) input.click();
+}
+
+// Abre anexo — renova link assinado automaticamente se ausente ou prestes a expirar
+async function openAttach(event, sid, iid, idx) {
+  event.preventDefault();
+  const sec  = state.sections.find(s=>s.id===sid);
+  const item = sec && sec.items.find(i=>i.id===iid);
+  if (!item) return;
+  const att = item.attachments[idx];
+  if (!att || !att.path) return;
+
+  // Renova se necessário
+  if (needsRefresh(att)) {
+    const link = event.currentTarget;
+    link.textContent = '⏳ abrindo…';
+    att.signedUrl = await getSignedUrl(att.path);
+    att.signedAt  = att.signedUrl ? Date.now() : null;
+    render(); // atualiza o chip
+    if (!att.signedUrl) {
+      toast('Não foi possível gerar o link. Verifique as políticas do Storage.', true);
+      return;
+    }
+  }
+
+  window.open(att.signedUrl, '_blank', 'noopener');
 }
 
 init();
