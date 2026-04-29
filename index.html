@@ -476,6 +476,8 @@ function addCheckItem(sid,iid) {
   const sec=state.sections.find(s=>s.id===sid);
   const item=sec&&sec.items.find(i=>i.id===iid);
   if (!item) return;
+  // Captura valores atuais dos campos antes de render() para não perder o que foi digitado
+  captureFields(item);
   item.checklist.push({ id:uid(), text:'', done:false });
   render();
   setTimeout(()=>{
@@ -484,10 +486,25 @@ function addCheckItem(sid,iid) {
   },50);
 }
 
+// Captura os valores dos inputs do item sem salvar no banco
+function captureFields(item) {
+  const iid = item.id;
+  if (g('subj_'+iid)) item.subject = g('subj_'+iid).value || item.subject;
+  if (g('date_'+iid)) item.date    = g('date_'+iid).value;
+  if (g('body_'+iid)) item.body    = g('body_'+iid).value;
+  if (g('notes_'+iid)) item.notes  = g('notes_'+iid).value;
+  item.checklist.forEach(c => {
+    const inp=g('ci_'+c.id); const chk=g('cc_'+c.id);
+    if (inp) c.text=inp.value;
+    if (chk) c.done=chk.checked;
+  });
+}
+
 function delCheckItem(sid,iid,cid) {
   const sec=state.sections.find(s=>s.id===sid);
   const item=sec&&sec.items.find(i=>i.id===iid);
   if (!item) return;
+  captureFields(item);
   item.checklist=item.checklist.filter(c=>c.id!==cid);
   render();
 }
@@ -669,8 +686,8 @@ function itemHtml(sid, item, idx) {
     <input type="file" multiple
       accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,audio/mpeg,audio/mp4,audio/ogg,audio/wav,video/mp4,video/webm"
       class="file-input-real" id="fi_${item.id}"
-      onchange="handleFile('${sid}','${item.id}',this.files);this.value=''" />
-    <button class="btn-attach" onclick="g('fi_${item.id}').click()">
+      data-sid="${sid}" data-iid="${item.id}" />
+    <button class="btn-attach" onclick="triggerFileInput('${item.id}')">
       + Adicionar arquivo
     </button>
     <span class="attach-hint">Imagens, PDF, Word, Excel, PPT, áudio, vídeo — máx. 20 MB por arquivo. Links expiram em 1h; reabra o item para renovar.</span>
@@ -765,6 +782,25 @@ function tradErr(msg){
   if(msg.includes('User already registered'))return 'Este e-mail já está cadastrado.';
   if(msg.includes('Password should be'))return 'A senha deve ter pelo menos 6 caracteres.';
   return msg;
+}
+
+/* ── FILE INPUT GLOBAL HANDLER ── */
+// Usa delegação de evento no document para não perder o listener após render()
+document.addEventListener('change', function(e) {
+  const input = e.target;
+  if (!input.classList.contains('file-input-real')) return;
+  const sid = input.dataset.sid;
+  const iid = input.dataset.iid;
+  if (sid && iid && input.files.length) {
+    handleFile(sid, iid, input.files);
+    // Reset após pequeno delay para permitir leitura dos arquivos
+    setTimeout(() => { input.value = ''; }, 200);
+  }
+});
+
+function triggerFileInput(iid) {
+  const input = g('fi_' + iid);
+  if (input) input.click();
 }
 
 init();
