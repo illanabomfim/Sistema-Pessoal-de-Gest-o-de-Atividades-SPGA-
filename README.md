@@ -55,15 +55,6 @@ URLs assinadas não são persistidas no banco
 remoção explícita de arquivos no Storage ao excluir atividades ou seções
 Configuração de credenciais
 
-O projeto utiliza placeholders no código:
-
-const SUPABASE_URL = '__SUPABASE_URL__';
-const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
-
-As credenciais são injetadas no momento do deploy via variáveis de ambiente no Vercel.
-
-Isso evita exposição direta no repositório público, embora a chave pública continue acessível no bundle final (comportamento esperado em aplicações client-side).
-
 Deploy
 
 O deploy é realizado via Vercel com script de build:
